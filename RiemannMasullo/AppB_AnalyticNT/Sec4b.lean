@@ -5967,6 +5967,165 @@ theorem finiteConnesWeilPrincipalValue_of_apply_one_zero (v : Primes(F))
 -- TODO(paper-gap): Equation (B.4.4.6) gives the wrong sign and scale for
 -- the restriction of T, and Fourier transformation requires an additive test space.
 
+/-- Connes's principal value for the standard character is minus the unit mass times the
+logarithmic Fourier pairing. -/
+private theorem existsUnique_finiteWeilFourierDistribution_principalValue (v : Primes(F))
+    (f : 𝒮ₐ(v.adicCompletion F)) :
+    finiteConnesPrincipalValue v 1 f = -(V𝔭(v) : ℂ) *
+      ∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v) := by
+  have hT := ((exists_finiteConnesPrincipalValue v 1).choose_spec f).2
+  change finiteConnesPrincipalValue v 1 f = _ at hT
+  simp only [Units.val_one, norm_one, Real.sqrt_one, ENNReal.ofReal_one, one_smul,
+    one_mul] at hT
+  exact hT
+
+/-- Translation by one of an additive test is an additive test. -/
+private theorem existsUnique_finiteWeilFourierDistribution_translate (v : Primes(F))
+    (g : 𝒮ₐ(v.adicCompletion F)) :
+    ∃ g' : 𝒮ₐ(v.adicCompletion F), ∀ x, addTest(g') x = addTest(g) (1 + x) := by
+  obtain ⟨hl, hc⟩ := finiteLogFourier_eq_neg_haar_testFacts v g
+  obtain ⟨g', hg'⟩ := (mem_finitePlaceSchwartz_iff F v (fun x ↦ addTest(g) (1 + x))).mpr
+    ⟨hl.comp_continuous (continuous_const.add continuous_id),
+      hc.comp_homeomorph (Homeomorph.addLeft (1 : v.adicCompletion F))⟩
+  exact ⟨g', hg'⟩
+
+/-- Fourier inversion on a finite completion: the double transform is reflection. -/
+private theorem existsUnique_finiteWeilFourierDistribution_fourier_fourier (v : Primes(F))
+    (s : 𝒮ₐ(v.adicCompletion F)) (y : v.adicCompletion F) :
+    tamagawaFourier ν𝔭(v) ψ𝔭(v) (tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(s)) y =
+      addTest(s) (-y) := by
+  let K := v.adicCompletion F
+  let G := Multiplicative K
+  let : ProperSpace K := properSpace_adicCompletion v
+  let : BorelSpace K := ⟨rfl⟩
+  obtain ⟨e, he, hP⟩ := finiteLocalAdditiveTamagawaMeasure_selfDual F v
+  let μ : Measure G := ν𝔭(v)
+  have hHaar := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  let : μ.IsHaarMeasure :=
+    { toIsFiniteMeasureOnCompacts := hHaar.toIsFiniteMeasureOnCompacts
+      toIsOpenPosMeasure := hHaar.toIsOpenPosMeasure
+      map_mul_left_eq_self := fun x ↦ hHaar.map_add_left_eq_self x.toAdd }
+  let : μ.Regular := finiteLocalAdditiveTamagawaMeasure_regular F v
+  let : MeasurableSpace (PontryaginDual G) := borel _
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  have hinv := schwartzBruhat_fourier_inversion μ _ hP s (Multiplicative.ofAdd (-y))
+  let m := e.toHomeomorph.toMeasurableEquiv
+  rw [show (⇑e : G → PontryaginDual G) = m from rfl, integral_map_equiv] at hinv
+  obtain ⟨ψ', hψ', -⟩ := finiteLocalStandardCharacter_exists_continuousMonoidHom F v
+  have hneg (a : K) : (ψ𝔭(v) (-a) : ℂ) = star (ψ𝔭(v) a : ℂ) := by
+    rw [← hψ' a, ← hψ' (-a), ofAdd_neg, map_inv, Circle.coe_inv_eq_conj, Complex.star_def]
+  change addTest(s) (-y) = _ at hinv
+  refine Eq.trans ?_ hinv.symm
+  change (∫ x, tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(s) x * star (ψ𝔭(v) (x * y) : ℂ) ∂ν𝔭(v)) = _
+  refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+  have h1 : tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(s) x = lcaFourier μ s (m x) :=
+    tamagawaFourier_eq_lcaFourier _ _ _ x _ fun z ↦ (he x z).trans (congrArg _ (mul_comm x z))
+  have h2 : ((m x) (Multiplicative.ofAdd (-y)) : ℂ) = star (ψ𝔭(v) (x * y) : ℂ) := by
+    change ((e (Multiplicative.ofAdd x)) (Multiplicative.ofAdd (-y)) : ℂ) = _
+    rw [he, mul_neg, hneg]
+  beta_reduce
+  rw [h1, h2]
+
+/-- The Fourier transform of the translate by one is the character times the transform. -/
+private theorem existsUnique_finiteWeilFourierDistribution_fourier_translate (v : Primes(F))
+    (g g' : 𝒮ₐ(v.adicCompletion F)) (hg' : ∀ x, addTest(g') x = addTest(g) (1 + x))
+    (y : v.adicCompletion F) :
+    tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g') y =
+      (ψ𝔭(v) y : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g) y := by
+  let K := v.adicCompletion F
+  let : BorelSpace K := ⟨rfl⟩
+  have hHaar := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  obtain ⟨ψ', hψ', -⟩ := finiteLocalStandardCharacter_exists_continuousMonoidHom F v
+  have hadd (a b : K) : (ψ𝔭(v) (a + b) : ℂ) = ψ𝔭(v) a * ψ𝔭(v) b := by
+    rw [← hψ' a, ← hψ' b, ← hψ' (a + b), ofAdd_add, map_mul, Circle.coe_mul]
+  have hunit : (ψ𝔭(v) y : ℂ) * star (ψ𝔭(v) y : ℂ) = 1 := by
+    rw [Complex.star_def, ← Circle.coe_inv_eq_conj, ← Circle.coe_mul, mul_inv_cancel,
+      Circle.coe_one]
+  let H : K → ℂ := fun z ↦ (ψ𝔭(v) y : ℂ) * (addTest(g) z * star (ψ𝔭(v) (z * y) : ℂ))
+  have hH : (fun x ↦ addTest(g') x * star (ψ𝔭(v) (x * y) : ℂ)) = fun x ↦ H (1 + x) := by
+    funext x
+    simp only [H, hg', add_mul, one_mul, hadd, star_mul']
+    linear_combination (-(addTest(g) (1 + x) * star (ψ𝔭(v) (x * y) : ℂ))) * hunit
+  unfold tamagawaFourier
+  rw [hH, integral_add_left_eq_self H 1, ← integral_const_mul]
+
+/-- Multiplicative integration is additive integration against `q/(q-1)` over the norm. -/
+private theorem existsUnique_finiteWeilFourierDistribution_units_integral (v : Primes(F))
+    (g : v.adicCompletion F → ℂ) :
+    ∫ u : (v.adicCompletion F)ˣ, g u.val ∂μ𝔭(v) =
+      ((q(v) / (q(v) - 1) : ℝ) : ℂ) * ∫ y, g y / ((‖y‖ : ℝ) : ℂ) ∂ν𝔭(v) := by
+  let K := v.adicCompletion F
+  let : BorelSpace K := ⟨rfl⟩
+  let : BorelSpace Kˣ := ⟨rfl⟩
+  have hval := (IsOpenUnits.isOpenEmbedding_unitsVal (M := K)).measurableEmbedding
+  let c : ENNReal := (↑v.asIdeal.absNorm / (↑v.asIdeal.absNorm - 1) : ENNReal)
+  let d : K → ENNReal := fun x ↦ (↑‖x‖₊ : ENNReal)⁻¹
+  have hd : Measurable d := by fun_prop
+  have hdlt : ∀ᵐ y ∂(ν𝔭(v).restrict (range (Units.val : Kˣ → K))), d y < ⊤ := by
+    refine ae_restrict_of_forall_mem hval.measurableSet_range fun y ⟨u, hu⟩ ↦ ?_
+    exact ENNReal.inv_lt_top.mpr (by simp [← hu])
+  have hdy (y : K) : (d y).toReal = ‖y‖⁻¹ := by
+    rw [ENNReal.toReal_inv, ENNReal.coe_toReal, coe_nnNorm]
+  have hq : (1 : ENNReal) < v.asIdeal.absNorm := by
+    exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+  have hsupp : support (fun y ↦ ‖y‖⁻¹ • g y) ⊆ range (Units.val : Kˣ → K) := by
+    intro y hy
+    have : y ≠ 0 := by rintro rfl; simp at hy
+    exact ⟨Units.mk0 y this, rfl⟩
+  have hc : (c.toReal : ℂ) = ((q(v) / (q(v) - 1) : ℝ) : ℂ) := by
+    simp only [c]
+    rw [ENNReal.toReal_div, ENNReal.toReal_sub_of_le hq.le (ENNReal.natCast_ne_top _),
+      ENNReal.toReal_natCast, ENNReal.toReal_one]
+  rw [finiteLocalMultiplicativeTamagawaMeasure_eq_withDensity, integral_smul_measure,
+    ← hval.integral_map (g := g), hval.map_comap,
+    setIntegral_withDensity_eq_setIntegral_toReal_smul hd hdlt _ hval.measurableSet_range]
+  simp_rw [hdy]
+  rw [setIntegral_eq_integral_of_forall_compl_eq_zero
+      (fun y hy ↦ Function.notMem_support.mp (fun h ↦ hy (hsupp h))), ← hc, Complex.real_smul]
+  congr 1
+  refine integral_congr_ae (ae_of_all _ fun y ↦ ?_)
+  show ‖y‖⁻¹ • g y = g y / ((‖y‖ : ℝ) : ℂ)
+  rw [Complex.real_smul, Complex.ofReal_inv, inv_mul_eq_div]
+
+/-- The standard character is trivial on the integers. -/
+private theorem existsUnique_finiteWeilFourierDistribution_char_eq_one (v : Primes(F))
+    (x : v.adicCompletion F) (hx : ‖x‖ ≤ 1) : ψ𝔭(v) x = 1 := by
+  have h := Set.ext_iff.mp (finiteLocalStandardCharacter_annihilator_integers F v) 1
+  have hq : (1 : ℝ) ≤ (v.asIdeal.absNorm : ℝ) := by
+    exact_mod_cast (NumberField.HeightOneSpectrum.one_lt_absNorm v).le
+  have h1 := h.mpr (by simpa using one_le_pow₀ (M₀ := ℝ) hq)
+  have hxO : x ∈ (v.adicCompletionIntegers F : Set (v.adicCompletion F)) := by
+    rw [SetLike.mem_coe, HeightOneSpectrum.mem_adicCompletionIntegers,
+      ← Valued.toNormedField.norm_le_one_iff]
+    exact hx
+  simpa using h1 x hxO
+
+/-- The Fourier transform of the unit-sphere indicator does not vanish at one. -/
+private theorem existsUnique_finiteWeilFourierDistribution_sphere_fourier_one (v : Primes(F)) :
+    tamagawaFourier ν𝔭(v) ψ𝔭(v)
+      (indicator {x : v.adicCompletion F | ‖x‖ = 1} (fun _ ↦ (1 : ℂ))) 1 ≠ 0 := by
+  let K := v.adicCompletion F
+  let : ProperSpace K := properSpace_adicCompletion v
+  let : BorelSpace K := ⟨rfl⟩
+  have hHaar := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  let S := {x : K | ‖x‖ = 1}
+  have hS : S = Metric.sphere (0 : K) 1 := Set.ext fun x ↦ mem_sphere_zero_iff_norm.symm
+  have hSo : IsOpen S := hS ▸ IsUltrametricDist.isOpen_sphere (0 : K) one_ne_zero
+  have hSc : IsCompact S := hS ▸ isCompact_sphere (0 : K) 1
+  have hind : (fun x ↦ S.indicator (fun _ ↦ (1 : ℂ)) x * star (ψ𝔭(v) (x * 1) : ℂ)) =
+      S.indicator (fun _ ↦ (1 : ℂ)) := by
+    funext x
+    by_cases hx : x ∈ S
+    · rw [indicator_of_mem hx, mul_one,
+        existsUnique_finiteWeilFourierDistribution_char_eq_one v x (show ‖x‖ = 1 from hx).le,
+        Circle.coe_one, star_one, one_mul]
+    · rw [indicator_of_notMem hx, zero_mul]
+  change (∫ x, S.indicator (fun _ ↦ (1 : ℂ)) x * star (ψ𝔭(v) (x * 1) : ℂ) ∂ν𝔭(v)) ≠ 0
+  rw [hind, integral_indicator hSo.measurableSet, setIntegral_const, Complex.real_smul, mul_one,
+    measureReal_def]
+  exact_mod_cast (ENNReal.toReal_pos (hSo.measure_pos _ ⟨1, by simp [S]⟩).ne'
+    hSc.measure_lt_top.ne).ne'
+
 /-- Paper: Lemma B.4.4.3, pp. 620–621. The translated Fourier
 distribution is normalized on the Fourier transform of the integer-unit indicator.
 It evaluates the finite multiplicative principal value on inverse square-root weighted tests.
@@ -5984,7 +6143,132 @@ theorem existsUnique_finiteWeilFourierDistribution (v : Primes(F)) :
     ∃ T, normalized T ∧ (∀ S, normalized S → S = T) ∧
       (∀ f : 𝒟((v.adicCompletion F)ˣ), ∃ g : 𝒮ₐ(v.adicCompletion F),
         (∀ x, addTest(g) x = zeroExtend(f.val) x / (Real.sqrt ‖x‖ : ℂ)) ∧
-        finiteConnesWeilPrincipalValue v 1 f = -(V𝔭(v) : ℂ) * T g) := by sorry
+        finiteConnesWeilPrincipalValue v 1 f = -(V𝔭(v) : ℂ) * T g) := by
+  intro normalized
+  let K := v.adicCompletion F
+  let : ProperSpace K := properSpace_adicCompletion v
+  let : BorelSpace K := ⟨rfl⟩
+  have hHaar := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  have hV : V𝔭(v) ≠ 0 := by
+    rw [finiteLocalMultiplicativeTamagawaMeasure_integerUnits, ENNReal.toReal_ne_zero]
+    refine ⟨ENNReal.inv_ne_zero.mpr ENNReal.ofReal_ne_top, ENNReal.inv_ne_top.mpr ?_⟩
+    refine (ENNReal.ofReal_pos.mpr (Real.sqrt_pos.mpr (pow_pos ?_ _))).ne'
+    exact_mod_cast (NumberField.HeightOneSpectrum.one_lt_absNorm v).trans' zero_lt_one
+  have hVc : (V𝔭(v) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hV
+  let C := finiteConnesPrincipalValue v 1
+  -- Translation by one on the additive tests.
+  let τ : 𝒮ₐ(K) → 𝒮ₐ(K) := fun g ↦
+    (existsUnique_finiteWeilFourierDistribution_translate v g).choose
+  have hτ (g : 𝒮ₐ(K)) (x : K) : addTest(τ g) x = addTest(g) (1 + x) :=
+    (existsUnique_finiteWeilFourierDistribution_translate v g).choose_spec x
+  have hτadd (g g' : 𝒮ₐ(K)) : τ (g + g') = τ g + τ g' := by
+    refine SchwartzBruhat.ext fun x ↦ ?_
+    change addTest(τ (g + g')) x.toAdd = addTest(τ g) x.toAdd + addTest(τ g') x.toAdd
+    rw [hτ (g + g'), hτ g, hτ g']
+    rfl
+  have hτsmul (c : ℂ) (g : 𝒮ₐ(K)) : τ (c • g) = c • τ g := by
+    refine SchwartzBruhat.ext fun x ↦ ?_
+    change addTest(τ (c • g)) x.toAdd = c * addTest(τ g) x.toAdd
+    rw [hτ (c • g), hτ g]
+    rfl
+  -- The distribution is minus the inverse unit mass times Connes's value on the translate.
+  let L : 𝒮ₐ(K) → ℂ := fun g ↦ -(V𝔭(v) : ℂ)⁻¹ * C (τ g)
+  have hLadd (g g' : 𝒮ₐ(K)) : L (g + g') = L g + L g' := by
+    simp only [L, hτadd, map_add]
+    ring
+  have hLsmul (c : ℂ) (g : 𝒮ₐ(K)) : L (c • g) = c * L g := by
+    simp only [L, hτsmul, map_smul, smul_eq_mul]
+    ring
+  obtain ⟨T, hT⟩ := exists_finiteConnesPrincipalValue_ofLinear v L hLadd hLsmul
+    (fun g z ↦ z = L g) (fun _ ↦ rfl)
+  -- (a) Away from one the distribution is the weighted integral.
+  have hA (g : 𝒮ₐ(K)) (hg : addTest(g) 1 = 0) :
+      T g = -((q(v) / (q(v) - 1) / V𝔭(v) : ℝ) : ℂ) *
+        ∫ x, addTest(g) x / ((‖1 - x‖ : ℝ) : ℂ) ∂ν𝔭(v) := by
+    have h0 : addTest(τ g) 0 = 0 := by rw [hτ, add_zero, hg]
+    rw [hT, show L g = -(V𝔭(v) : ℂ)⁻¹ * C (τ g) from rfl,
+      show C (τ g) = _ from finiteConnesPrincipalValue_one_of_apply_zero v (τ g) h0]
+    simp_rw [hτ]
+    rw [existsUnique_finiteWeilFourierDistribution_units_integral v (fun y ↦ addTest(g) (1 + y))]
+    have htr : ∫ y, addTest(g) (1 + y) / ((‖y‖ : ℝ) : ℂ) ∂ν𝔭(v) =
+        ∫ x, addTest(g) x / ((‖1 - x‖ : ℝ) : ℂ) ∂ν𝔭(v) := by
+      rw [← integral_add_left_eq_self (μ := ν𝔭(v))
+        (fun x ↦ addTest(g) x / ((‖1 - x‖ : ℝ) : ℂ)) 1]
+      refine integral_congr_ae (ae_of_all _ fun y ↦ ?_)
+      show addTest(g) (1 + y) / ((‖y‖ : ℝ) : ℂ) = addTest(g) (1 + y) / ((‖1 - (1 + y)‖ : ℝ) : ℂ)
+      rw [sub_add_cancel_left, norm_neg]
+    rw [htr]
+    push_cast
+    ring
+  -- (b) The Fourier transform of the unit-sphere indicator is annihilated.
+  have hS : {x : K | ‖x‖ = 1} = Metric.sphere (0 : K) 1 :=
+    Set.ext fun x ↦ mem_sphere_zero_iff_norm.symm
+  obtain ⟨s, hs⟩ := finiteLogFourier_eq_neg_haar_clopenTest v {x : K | ‖x‖ = 1}
+    (hS ▸ IsUltrametricDist.isClopen_sphere (0 : K) one_ne_zero) (hS ▸ isCompact_sphere (0 : K) 1)
+  obtain ⟨h, hh⟩ := finiteLocal_exists_fourier_test v s
+  have hsf : addTest(s) = indicator {x : K | ‖x‖ = 1} (fun _ ↦ (1 : ℂ)) := funext hs
+  have hhs : addTest(h) = tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(s) := funext hh
+  have hhf : addTest(h) = tamagawaFourier ν𝔭(v) ψ𝔭(v)
+      (indicator {x : K | ‖x‖ = 1} (fun _ ↦ (1 : ℂ))) := by rw [hhs, hsf]
+  have hTh : T h = 0 := by
+    rw [hT, show L h = -(V𝔭(v) : ℂ)⁻¹ * C (τ h) from rfl,
+      show C (τ h) = _ from existsUnique_finiteWeilFourierDistribution_principalValue v (τ h)]
+    have hzero (y : K) : ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(τ h) y = 0 := by
+      rw [existsUnique_finiteWeilFourierDistribution_fourier_translate v h (τ h) (hτ h) y, hhs,
+        existsUnique_finiteWeilFourierDistribution_fourier_fourier v s y]
+      beta_reduce
+      rw [hs]
+      by_cases hy : ‖y‖ = 1
+      · simp [hy]
+      · rw [indicator_of_notMem (by show ¬ (‖-y‖ = 1); rwa [norm_neg]), mul_zero, mul_zero]
+    simp only [hzero, integral_zero, mul_zero]
+  -- (c) The weighted zero extension translates to Weil's test map.
+  have hC (f : 𝒟(Kˣ)) : ∃ g : 𝒮ₐ(K),
+      (∀ x, addTest(g) x = zeroExtend(f.val) x / (Real.sqrt ‖x‖ : ℂ)) ∧
+        finiteConnesWeilPrincipalValue v 1 f = -(V𝔭(v) : ℂ) * T g := by
+    let wt : Kˣ → ℂ := fun u ↦ f.val u / (Real.sqrt ‖u.val‖ : ℂ)
+    have hl : IsLocallyConstant wt := (finiteUnits_test_isLocallyConstant v f).comp₂
+      ((finiteUnits_norm_isLocallyConstant v).comp fun t ↦ ((Real.sqrt t : ℝ) : ℂ)) (· / ·)
+    have hc : HasCompactSupport wt := HasCompactSupport.mono f.property.2 fun u hu h0 ↦ hu (by
+      change f.val u / _ = 0
+      rw [h0, zero_div])
+    obtain ⟨hEl, hEc⟩ := finiteUnits_extend_regular v wt hl hc
+    obtain ⟨g, hg⟩ := (mem_finitePlaceSchwartz_iff F v _).mpr ⟨hEl, hEc⟩
+    have hgx (x : K) : addTest(g) x = zeroExtend(f.val) x / (Real.sqrt ‖x‖ : ℂ) := by
+      show g (Multiplicative.ofAdd x) = _
+      rw [hg]
+      by_cases hr : ∃ u : Kˣ, u.val = x
+      · obtain ⟨u, rfl⟩ := hr
+        rw [Units.val_injective.extend_apply, Units.val_injective.extend_apply]
+      · rw [extend_apply' _ _ _ hr, extend_apply' _ _ _ hr, zero_div]
+    refine ⟨g, hgx, ?_⟩
+    have hτg : τ g = (exists_finiteWeilTestMap v).choose f := by
+      refine SchwartzBruhat.ext fun x ↦ ?_
+      change addTest(τ g) x.toAdd = addTest((exists_finiteWeilTestMap v).choose f) x.toAdd
+      rw [hτ, hgx, (exists_finiteWeilTestMap v).choose_spec f]
+    rw [hT, show L g = -(V𝔭(v) : ℂ)⁻¹ * C (τ g) from rfl, hτg, neg_mul, neg_mul, mul_neg,
+      neg_neg, ← mul_assoc, mul_inv_cancel₀ hVc, one_mul]
+    rfl
+  refine ⟨T, ⟨hA, h, hhf, hTh⟩, ?_, hC⟩
+  -- Uniqueness: both conditions determine the value on every test.
+  rintro S ⟨hSa, h', hh', hSh'⟩
+  have hh'h : h' = h := SchwartzBruhat.ext fun x ↦ by
+    change addTest(h') x.toAdd = addTest(h) x.toAdd
+    rw [hh', hhf]
+  rw [hh'h] at hSh'
+  have h1 : addTest(h) 1 ≠ 0 := by
+    rw [hhf]
+    exact existsUnique_finiteWeilFourierDistribution_sphere_fourier_one v
+  refine ContinuousLinearMap.ext fun f ↦ ?_
+  set a : ℂ := addTest(f) 1 / addTest(h) 1 with ha
+  have hdec : addTest(f - a • h) 1 = 0 := by
+    change f (Multiplicative.ofAdd 1) - a * h (Multiplicative.ofAdd 1) = 0
+    rw [ha]
+    field_simp
+    ring
+  calc S f = S (f - a • h) + a * S h := by rw [map_sub, map_smul, smul_eq_mul]; ring
+    _ = T (f - a • h) + a * T h := by rw [hSa _ hdec, hA _ hdec, hSh', hTh]
+    _ = T f := by rw [map_sub, map_smul, smul_eq_mul]; ring
 
 /-- Paper: Lemma B.4.4.4(1), p. 622. Changing the finite additive
 character by a multiplier adds a multiple of evaluation at zero to Connes's principal value. -/
@@ -6256,6 +6540,71 @@ local notation "infiniteClassMap(" w ")" => IdeleClassGroup.ofCompletion (𝓞 F
 -- For (B.4.4.22), compact norm support handles nonunit shells at large primes.
 -- Invariance under the local units at almost every prime makes the unit-shell test constant.
 
+/-- Paper: Theorem B.4.4.7, p. 626. Restriction along the closed embedding of the
+units of a finite completion into the idele classes is a continuous linear map of
+compactly supported test spaces. -/
+theorem idelicExplicitFormula_finiteTestMap (v : Primes(F)) :
+    ∃ R : 𝒟(C[F]) →L[ℂ] 𝒟((v.adicCompletion F)ˣ),
+      ∀ (f : 𝒟(C[F])) (u : (v.adicCompletion F)ˣ), (R f).val u = f.val (finiteClassMap(v) u) := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, p. 626. Restriction along the closed embedding of the
+units of an archimedean completion into the idele classes is a continuous linear map of
+compactly supported test spaces. -/
+theorem idelicExplicitFormula_infiniteTestMap (w : InfinitePlace F) :
+    ∃ R : 𝒟(C[F]) →L[ℂ] 𝒟(w.Completionˣ),
+      ∀ (f : 𝒟(C[F])) (u : w.Completionˣ), (R f).val u = f.val (infiniteClassMap(w) u) := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, p. 626. Integration against a continuous function on the
+idele classes is a continuous linear functional on the compactly supported test space. -/
+theorem idelicExplicitFormula_integralDistribution (c : C[F] → ℂ) (_hc : Continuous c) :
+    ∃ D : StrongDual ℂ (𝒟(C[F])), ∀ f : 𝒟(C[F]), D f = ∫ g, f.val g * c g ∂classMeasure := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, pp. 623–626, and Lemma B.4.4.9, pp. 624–625. The spectral terms
+of the idelic explicit formula are absolutely summable at every test. -/
+theorem idelicExplicitFormula_summable_spectral (τ : ℝ≥0ˣ →ₜ* C[F])
+    (_hτ : RightInverse τ (ideleClassNorm F)) (f : 𝒟(C[F])) :
+    Summable (fun z : chartZeros(τ) ↦ ‖zeroMultiplicity(z) *
+      ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure‖) := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, p. 625, (B.4.4.22). For all but finitely many primes the
+restricted test is a constant multiple of the integer-unit indicator at an unramified
+prime, so its finite principal value vanishes. -/
+theorem idelicExplicitFormula_finite_support (f : 𝒟(C[F]))
+    (test : ∀ v : Primes(F), 𝒟((v.adicCompletion F)ˣ))
+    (_htest : ∀ v u, (test v).val u = f.val (finiteClassMap(v) u)) :
+    {v : Primes(F) | finiteConnesWeilPrincipalValue v 1 (test v) ≠ 0}.Finite := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, pp. 623–626. The pointwise idelic explicit formula: at every
+test, the multiplicity-weighted Mellin values at the completed Hecke zeros sum to the pole
+terms minus the archimedean and finite Connes–Weil principal values of the restricted tests. -/
+theorem idelicExplicitFormula_pointwise (τ : ℝ≥0ˣ →ₜ* C[F])
+    (_hτ : RightInverse τ (ideleClassNorm F)) (f : 𝒟(C[F]))
+    (testI : ∀ w : InfinitePlace F, 𝒟(w.Completionˣ))
+    (_hI : ∀ w u, (testI w).val u = f.val (infiniteClassMap(w) u))
+    (testF : ∀ v : Primes(F), 𝒟((v.adicCompletion F)ˣ))
+    (_hF : ∀ v u, (testF v).val u = f.val (finiteClassMap(v) u)) :
+    HasSum (fun z : chartZeros(τ) ↦ zeroMultiplicity(z) / (classVolume : ℂ) *
+        ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure)
+      (((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
+          (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ) -
+        (∑ w, infiniteConnesWeilPrincipalValue w (testI w)) -
+        ∑' v, finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 (testF v)) := by
+  sorry
+
+/-- Paper: Theorem B.4.4.7, pp. 625–626, with Remark B.4.1.6. A family of distributions on
+the idele class test space whose values are absolutely summable at every test has a
+continuous pointwise sum, and converges to it in the strong dual: the test space is
+barrelled and its bounded sets are precompact. -/
+theorem idelicExplicitFormula_hasSum_strongDual {ι : Type*}
+    (T : ι → StrongDual ℂ (𝒟(C[F]))) (_hT : ∀ f, Summable (fun i ↦ ‖T i f‖)) :
+    ∃ T₀ : StrongDual ℂ (𝒟(C[F])), (∀ f, HasSum (fun i ↦ T i f) (T₀ f)) ∧ HasSum T T₀ := by
+  sorry
+
 /-- Paper: Theorem B.4.4.7, pp. 623–626. The sum over completed Hecke zeros
 equals the pole distributions minus the local principal value distributions.
 The zero and finite-place series converge in the strong dual of the test space.
@@ -6281,7 +6630,72 @@ theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse
       (∀ f, Summable (fun z ↦ ‖spectral z f‖)) ∧
       (∀ f, (Function.support (fun v ↦ finite v f)).Finite) ∧
       Summable finite ∧
-      HasSum spectral (poles - (∑ w, arch w) - (∑' v, finite v)) := by sorry
+      HasSum spectral (poles - (∑ w, arch w) - (∑' v, finite v)) := by
+  choose RF hRF using fun v : Primes(F) ↦ idelicExplicitFormula_finiteTestMap (F := F) v
+  choose RI hRI using fun w : InfinitePlace F ↦ idelicExplicitFormula_infiniteTestMap (F := F) w
+  have hwc (a : ℂ) : Continuous fun g : C[F] ↦ classWeight(g, a) :=
+    (ideleClassNorm_cpow_properties (F := F) a).2.2
+  choose Dz hDz using fun z : chartZeros(τ) ↦ idelicExplicitFormula_integralDistribution
+    (fun g ↦ zeroCharacter(z) g * classWeight(g, -1 / 2))
+    ((zeroCharacter(z)).continuous.mul (hwc _))
+  obtain ⟨D₁, hD₁⟩ := idelicExplicitFormula_integralDistribution
+    (fun g : C[F] ↦ classWeight(g, -1 / 2)) (hwc _)
+  obtain ⟨D₂, hD₂⟩ := idelicExplicitFormula_integralDistribution
+    (fun g : C[F] ↦ classWeight(g, 1 / 2)) (hwc _)
+  let spectral : chartZeros(τ) → StrongDual ℂ (𝒟(C[F])) :=
+    fun z ↦ (zeroMultiplicity(z) / (classVolume : ℂ)) • Dz z
+  let poles : StrongDual ℂ (𝒟(C[F])) := (classVolume : ℂ)⁻¹ • (D₁ + D₂)
+  let arch : InfinitePlace F → StrongDual ℂ (𝒟(C[F])) :=
+    fun w ↦ (infiniteConnesWeilPrincipalValue w).comp (RI w)
+  let finite : Primes(F) → StrongDual ℂ (𝒟(C[F])) :=
+    fun v ↦ finiteWeilScale(v) • (finiteConnesWeilPrincipalValue v 1).comp (RF v)
+  have hspec (z : chartZeros(τ)) (f : 𝒟(C[F])) : spectral z f = zeroMultiplicity(z) /
+      (classVolume : ℂ) * ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure := by
+    change (zeroMultiplicity(z) / (classVolume : ℂ)) * Dz z f = _
+    rw [hDz]
+    exact congrArg (zeroMultiplicity(z) / (classVolume : ℂ) * ·)
+      (integral_congr_ae (ae_of_all _ fun g ↦ (mul_assoc _ _ _).symm))
+  have hpoles (f : 𝒟(C[F])) : poles f =
+      ((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
+        (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ) := by
+    change (classVolume : ℂ)⁻¹ * (D₁ f + D₂ f) = _
+    rw [hD₁, hD₂]
+    exact (div_eq_inv_mul _ _).symm
+  have hfin (v : Primes(F)) (f : 𝒟(C[F])) :
+      finite v f = finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 (RF v f) := rfl
+  have hsupp (f : 𝒟(C[F])) : (Function.support (fun v ↦ finite v f)).Finite := by
+    refine (idelicExplicitFormula_finite_support f (fun v ↦ RF v f) (fun v u ↦ hRF v f u)).subset
+      fun v hv ↦ ?_
+    intro h0
+    apply hv
+    show finite v f = 0
+    rw [hfin, h0, mul_zero]
+  have hsummable (f : 𝒟(C[F])) : Summable (fun z ↦ ‖spectral z f‖) := by
+    refine ((idelicExplicitFormula_summable_spectral τ _hτ f).mul_left
+      ‖(classVolume : ℂ)⁻¹‖).congr fun z ↦ ?_
+    rw [hspec, ← norm_mul]
+    congr 1
+    ring
+  obtain ⟨Tf, hTf, hTfsum⟩ := idelicExplicitFormula_hasSum_strongDual finite fun f ↦
+    summable_of_ne_finset_zero (s := (hsupp f).toFinset) fun v hv ↦ by
+      rw [Finite.mem_toFinset] at hv
+      rw [Function.notMem_support.mp hv, norm_zero]
+  obtain ⟨Ts, hTs, hTssum⟩ := idelicExplicitFormula_hasSum_strongDual spectral hsummable
+  have hTfeq : (∑' v, finite v) = Tf := hTfsum.tsum_eq
+  have hTseq : Ts = poles - (∑ w, arch w) - (∑' v, finite v) := by
+    refine ContinuousLinearMap.ext fun f ↦ ?_
+    have h := idelicExplicitFormula_pointwise τ _hτ f (fun w ↦ RI w f) (fun w u ↦ hRI w f u)
+      (fun v ↦ RF v f) (fun v u ↦ hRF v f u)
+    have h' : HasSum (fun z ↦ spectral z f) (((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
+          (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ) -
+        (∑ w, infiniteConnesWeilPrincipalValue w (RI w f)) -
+        ∑' v, finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 (RF v f)) := by
+      refine h.congr_fun fun z ↦ ?_
+      rw [hspec]
+    rw [(hTs f).unique h', sub_apply, sub_apply, hpoles, sum_apply, hTfeq, ← (hTf f).tsum_eq]
+    rfl
+  refine ⟨spectral, poles, arch, finite, hspec, hpoles, fun w f ↦ ⟨RI w f, hRI w f, rfl⟩,
+    fun v f ↦ ⟨RF v f, hRF v f, rfl⟩, hsummable, hsupp, hTfsum.summable, hTseq ▸ hTssum⟩
 
 -- TODO(paper-gap): Discreteness in each component imposes no bound on
 -- the number of points in consecutive height intervals, even for G = ℝ₊ˣ.
