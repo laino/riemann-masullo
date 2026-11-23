@@ -1325,6 +1325,123 @@ theorem modulatedPeriodicMomentIndex_enumerable (hN : 0 < N) :
 
 variable (hcomm : ∃ a : ℝ, 0 < a ∧ ∀ k, ∃ r : ℚ, Real.log ((m (γs k)).val : ℝ) = (r : ℝ) * a)
 
+/-- Paper: Theorem 4.6.1.5 and Equation (4.6.1.15), p. 212. The descended log-moments
+separate the points of the difference quotient: a class on which every admissible moment
+vanishes is zero. Equivalently, a function of the isotype all of whose log-moments of order
+below the multiplicity vanish at every point of the periodic spectrum lies in the range of
+the difference product. This is the division step of the proof on p. 213: the Mellin
+transform of such a function vanishes at every lattice zero of the product
+$\prod_k(1-\chi(\gamma_k)\lvert\gamma_k\rvert_G^{-s})$ to at least the order of that zero,
+and the quotient is again Schwartz on vertical strips. It makes a biorthogonal family of
+the moments unique. Commensurability of the log-periods is not needed. -/
+theorem modulatedQuotientLogMoment_separating (u : U) (hu : ∀ j : J, D j u = 0) : u = 0 := by
+  sorry
+
+include hχ hcomm in
+/-- Paper: Theorem 4.6.1.5(1) and Equations (4.6.1.18)–(4.6.1.21) and (4.6.1.27),
+pp. 212–216. The descended log-moments admit a biorthogonal family in the difference
+quotient whose members grow at most polynomially in each lattice frequency, for every
+continuous seminorm and uniformly in the moment order. The family is built on p. 213 from
+the Mellin transforms (4.6.1.19) and the triangular systems (4.6.1.20)–(4.6.1.21); the
+growth estimate is (4.6.1.27), which uses the finiteness of the phase set (4.6.1.25).
+Deviation: The actual log-periods are commensurate. A positive multiple of a power of one
+plus the frequency norm expresses polynomial growth. -/
+theorem modulatedQuotientLogMoment_exists_biorthogonal_growth :
+    ∃ ψ : J → U, (∀ j, D j (ψ j) = 1) ∧ (∀ j k, j ≠ k → D j (ψ k) = 0) ∧
+      ∀ q : Seminorm ℂ U, Continuous q → ∃ d : ℕ, ∀ k : Fin N, ∃ C : ℝ, 0 < C ∧
+        ∀ (n : ℤ) (j : J), j.val.1 = freq[k, n] →
+          q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by
+  sorry
+
+/-- In a Fréchet space a series whose terms are summable in every continuous seminorm is
+summable. -/
+private theorem modulatedQuotientLogMoment_bases_summable_of_seminorms {X : Type*}
+    [AddCommGroup X] [Module ℂ X] [TopologicalSpace X] (hF : IsFrechetTVS X) (a : ℕ → X)
+    (h : ∀ q : Seminorm ℂ X, Continuous q → Summable (fun m ↦ q (a m))) : Summable a := by
+  obtain ⟨hadd, hpoly, _, hcomplete⟩ := hF
+  let : UniformSpace X := IsTopologicalAddGroup.rightUniformSpace X
+  have : IsUniformAddGroup X := isUniformAddGroup_of_addCommGroup
+  have : CompleteSpace X := hcomplete
+  refine (summable_iff_vanishing (α := X)).mpr fun e he ↦ ?_
+  obtain ⟨q, hq, hqe⟩ := (PolynormableSpace.hasBasis_zero_ball ℂ X).mem_iff.mp he
+  obtain ⟨s, hs⟩ := summable_iff_vanishing.mp (h q hq) (Metric.ball 0 1)
+    (Metric.ball_mem_nhds 0 one_pos)
+  refine ⟨s, fun t ht ↦ hqe ?_⟩
+  rw [Seminorm.mem_ball_zero]
+  have h1 := hs t ht
+  rw [Metric.mem_ball, dist_zero_right, Real.norm_eq_abs,
+    abs_of_nonneg (Finset.sum_nonneg fun _ _ ↦ apply_nonneg _ _)] at h1
+  exact (Finset.le_sum_of_subadditive q (map_zero q).le (map_add_le_add q) t a).trans_lt h1
+
+/-- Paper: Theorem 4.1.2.6(2), p. 161, and Lemma 4.1.2.4, p. 159. A Schauder basis of a
+nuclear Fréchet space is absolute, and its coefficient functionals form an unconditional
+Schauder basis of the strong dual with coordinates the evaluations at the basis vectors.
+Reflexivity comes from the Montel property of a complete nuclear space. -/
+private theorem modulatedQuotientLogMoment_bases_of_nuclear_frechet {X : Type*}
+    [AddCommGroup X] [Module ℂ X] [TopologicalSpace X] [IsTopologicalAddGroup X]
+    [ContinuousSMul ℂ X] (hN : IsNuclearTVS.{0} X)
+    (hF : IsFrechetTVS X) (x : ℕ → X) (f : ℕ → StrongDual ℂ X) (hb : IsSchauderBasis x f) :
+    SchauderBasis.IsAbsolute x f ∧
+      IsSchauderBasis f (fun n ↦ ContinuousLinearMap.applyₗ ℂ (RingHom.id ℂ) (x n)) ∧
+      SchauderBasis.IsUnconditional f
+        (fun n ↦ ContinuousLinearMap.applyₗ ℂ (RingHom.id ℂ) (x n)) := by
+  have ha := SchauderBasis.isAbsolute_of_nuclear_frechet hN hF hb
+  let : BarrelledSpace ℂ X := isFrechetTVS_barrelled hF
+  obtain ⟨hadd, hpoly, hmetr, hcomplete⟩ := hF
+  let : UniformSpace X := IsTopologicalAddGroup.rightUniformSpace X
+  have : IsUniformAddGroup X := isUniformAddGroup_of_addCommGroup
+  have hComplete : CompleteSpace X := hcomplete
+  have : MontelSpace ℂ X := ⟨fun Kset hK hbounded ↦ by
+    simpa only [hK.closure_eq] using isCompact_closure_of_isNuclearTVS X hN hbounded⟩
+  have hReflexive : IsHomeomorph
+      (ContinuousLinearMap.applyₗ ℂ (RingHom.id ℂ) : X → StrongDual ℂ (StrongDual ℂ X)) :=
+    isHomeomorph_iff_isEmbedding_surjective.mpr
+      ⟨isEmbedding_strongBidual_eval, surjective_strongBidual_eval⟩
+  exact ⟨ha, SchauderBasis.isShrinking_of_isAbsolute hComplete hReflexive hb ha,
+    SchauderBasis.strongDual_isUnconditional_of_isAbsolute hComplete hReflexive hb ha⟩
+
+include hm hms hγs in
+/-- The phase data of Situation 4.6.1.1 exist: a lift of every norm-one character and a
+normalized phase at each generator. -/
+private theorem modulatedQuotientLogMoment_bases_exists_phase (hN : 0 < N) :
+    ∃ (χ : PontryaginDual m.toMonoidHom.ker → PontryaginDual G)
+      (t₀ : Fin N → PontryaginDual m.toMonoidHom.ker → ℝ),
+      (∀ (ω' : PontryaginDual m.toMonoidHom.ker) (u : m.toMonoidHom.ker), χ ω' u.val = ω' u) ∧
+      ∀ k ω', let L := Real.log ((m (γs k)).val : ℝ)
+        t₀ k ω' ∈ Ico 0 (2 * Real.pi / L) ∧ Circle.exp (t₀ k ω' * L) = χ ω' (γs k) := by
+  obtain ⟨τ₀, hτ₀⟩ := hm.exists_section
+  let τ : ℝ≥0ˣ →ₜ* G := τ₀.comp
+    ⟨(MonoidHom.id ℝ≥0ˣ).codRestrict _ fun t ↦ MonoidHom.mem_range.mpr (hms t),
+      continuous_id.subtype_mk _⟩
+  have hτ : RightInverse τ m := fun t ↦ hτ₀ _
+  obtain ⟨χ, -, -, hχ, -, -⟩ :=
+    exists_modulatedCyclicCharacter_lifts m (γs ⟨0, hN⟩) τ hτ (hγs _)
+  choose t₀ ht₀ using fun (k : Fin N) (ω' : PontryaginDual m.toMonoidHom.ker) ↦
+    (existsUnique_modulatedCharacterPhase m (γs k) (hγs k) (χ ω')).exists
+  exact ⟨χ, t₀, hχ, ht₀⟩
+
+/-- Every moment order is below the number of generators. -/
+private theorem modulatedQuotientLogMoment_bases_index_lt (j : J) : j.val.2 < N := by
+  classical
+  exact lt_of_lt_of_le j.2 ((Finset.card_filter_le _ _).trans (Finset.card_fin N).le)
+
+include hχ in
+/-- Paper: Theorem 4.6.1.5(2), p. 212, and p. 216. Against a family of quotient vectors of
+polynomial growth in each lattice frequency, the coefficient series of every quotient class is
+absolutely summable in every continuous seminorm. This is the convergence step on p. 216: the
+lattice coefficients of order below the multiplicity decay faster than any power,
+`modulatedLogMoment_lattice_schwartz`, and a polynomial factor does not change that. That
+theorem is stated after this one in the file, so the derivation is recorded as
+`modulatedQuotientLogMoment_coeff_summable_of_lattice_schwartz` below, with the same
+statement; moving `modulatedLogMoment_lattice_schwartz` above this theorem makes that proof
+available here. -/
+theorem modulatedQuotientLogMoment_coeff_summable (ψ : J → U) (q : Seminorm ℂ U)
+    (d : ℕ) (C : Fin N → ℝ) (hC : ∀ k, 0 ≤ C k)
+    (hψ : ∀ (k : Fin N) (n : ℤ) (j : J), j.val.1 = freq[k, n] →
+      q (ψ j) ≤ C k * (1 + |(n : ℝ)|) ^ d)
+    (u : U) : Summable (fun j : J ↦ ‖D j u‖ * q (ψ j)) := by
+  sorry
+
 include hcomm in
 /-- Paper: Theorem 4.6.1.5 and Equations (4.6.1.15)–(4.6.1.16), p. 212.
 Every enumeration of the moment family is an unconditional basis of the
@@ -1338,7 +1455,59 @@ theorem modulatedQuotientLogMoment_bases (σ : ℕ ≃ J) :
       let ev : ℕ → StrongDual ℂ (StrongDual ℂ U) :=
         fun n ↦ ContinuousLinearMap.applyₗ ℂ (RingHom.id ℂ) (e n)
       IsSchauderBasis e d ∧ SchauderBasis.IsAbsolute e d ∧
-        IsSchauderBasis d ev ∧ SchauderBasis.IsUnconditional d ev := by sorry
+        IsSchauderBasis d ev ∧ SchauderBasis.IsUnconditional d ev := by
+  have hN : 0 < N := Nat.pos_of_ne_zero fun h ↦ by
+    have := modulatedQuotientLogMoment_bases_index_lt m ω γs (σ 0)
+    omega
+  obtain ⟨χ, t₀, hχ, ht₀⟩ := modulatedQuotientLogMoment_bases_exists_phase m hm hms γs hγs hN
+  obtain ⟨ψ, h1, h2, h3⟩ := modulatedQuotientLogMoment_exists_biorthogonal_growth (m := m)
+    (hm := hm) (hms := hms) (ω := ω) (γs := γs) (hγs := hγs) (χ := χ) (hχ := hχ) (t₀ := t₀)
+    (ht₀ := ht₀) (μ := μ) (hcomm := hcomm)
+  have hS₀ : ∀ g ∈ List.ofFn γs, 1 < (m g).val := by
+    intro g hg
+    obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hg
+    exact hγs k
+  obtain ⟨-, hNuc, hF⟩ := modulatedIsotypicDifferenceProduct_quotient (m := m) (hm := hm)
+    (hms := hms) (ω := ω) (List.ofFn γs) hS₀
+  refine ⟨ψ, ?_⟩
+  intro e d ev
+  have hb : IsSchauderBasis (ψ ∘ σ) (D ∘ σ) := by
+    refine ⟨fun a b ↦ ?_, fun u ↦ ?_⟩
+    · change D (σ a) (ψ (σ b)) = _
+      split_ifs with hab
+      · rw [hab]
+        exact h1 _
+      · exact h2 _ _ fun h ↦ hab (σ.injective h)
+    · have hsum : Summable (fun m ↦ D (σ m) u • ψ (σ m)) := by
+        refine modulatedQuotientLogMoment_bases_summable_of_seminorms hF _ fun q hq ↦ ?_
+        obtain ⟨dd, hd⟩ := h3 q hq
+        choose C hC hCb using hd
+        have h' := modulatedQuotientLogMoment_coeff_summable m hm hms ω γs hγs χ hχ t₀ ht₀
+          μ ψ q dd C (fun k ↦ (hC k).le) hCb u
+        refine (σ.summable_iff.mpr h').congr fun m ↦ ?_
+        simp only [Function.comp_apply, map_smul_eq_mul]
+      have hs := hsum.hasSum
+      have heq : ∑' m, D (σ m) u • ψ (σ m) = u := by
+        rw [← sub_eq_zero]
+        refine modulatedQuotientLogMoment_separating (m := m) (hm := hm) (hms := hms) (ω := ω)
+          (γs := γs) (hγs := hγs) (μ := μ) _ fun j ↦ ?_
+        rw [map_sub, sub_eq_zero]
+        refine (hs.mapL (D j)).unique ?_
+        have hterm : (fun m ↦ D j (D (σ m) u • ψ (σ m))) =
+            fun m ↦ if m = σ.symm j then D j u else 0 := by
+          funext m
+          rw [map_smul, smul_eq_mul]
+          by_cases hm : m = σ.symm j
+          · rw [ite_eq_left hm, hm, Equiv.apply_symm_apply, h1, mul_one]
+          · rw [ite_eq_right hm, h2 j (σ m) fun h ↦ hm (by rw [h, Equiv.symm_apply_apply]),
+              mul_zero]
+        rw [hterm]
+        exact hasSum_ite_eq _ _
+      rw [heq] at hs
+      exact hs.mono_left (SummationFilter.conditional ℕ).le_atTop
+  obtain ⟨ha, hd, hu⟩ := modulatedQuotientLogMoment_bases_of_nuclear_frechet hNuc hF (ψ ∘ σ)
+    (D ∘ σ) hb
+  exact ⟨hb, ha, hd, hu⟩
 
 include hχ hcomm in
 /-- Paper: Theorem 4.6.1.5(1), p. 212. A continuous seminorm of the
@@ -1351,7 +1520,21 @@ theorem modulatedQuotientLogMoment_biorthogonal_growth (ψ : J → U)
     (q : Seminorm ℂ U) (hq : Continuous q) :
     ∃ d : ℕ, ∀ k : Fin N, ∃ C : ℝ, 0 < C ∧
       ∀ (n : ℤ) (j : J), j.val.1 = freq[k, n] →
-        q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by sorry
+        q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by
+  obtain ⟨ψ₀, h1, h2, h3⟩ := modulatedQuotientLogMoment_exists_biorthogonal_growth (m := m)
+    (hm := hm) (hms := hms) (ω := ω) (γs := γs) (hγs := hγs) (χ := χ) (hχ := hχ) (t₀ := t₀)
+    (ht₀ := ht₀) (μ := μ) (hcomm := hcomm)
+  have hψ : ψ = ψ₀ := by
+    funext j
+    rw [← sub_eq_zero]
+    refine modulatedQuotientLogMoment_separating (m := m) (hm := hm) (hms := hms) (ω := ω)
+      (γs := γs) (hγs := hγs) (μ := μ) _ fun i ↦ ?_
+    rw [map_sub, sub_eq_zero]
+    by_cases hij : i = j
+    · rw [hij, hdiag, h1]
+    · rw [hoff i j hij, h2 i j hij]
+  rw [hψ]
+  exact h3 q hq
 
 include hχ in
 /-- Paper: Theorem 4.6.1.5(2), p. 212. At each fixed moment order, the
@@ -1366,6 +1549,140 @@ theorem modulatedLogMoment_lattice_schwartz (f : H₀[ω]) (r : Fin N) (k : Fin 
       if r.val < modulatedPeriodicMultiplicity m ω γs (freq[k, n]) then
         modulatedLogMoment (m := m) (hm := hm) (hms := hms) (ω := ω) (μ := μ) (freq[k, n]) r.val f
       else 0 := by sorry
+
+/-- A Schwartz–Bruhat sequence on the integers is summable against every polynomial weight.
+The identification of the integer Schwartz–Bruhat space with the rapidly decreasing sequences
+repeats the one used for Lemma 4.4.2.6(2b) in §4.4. -/
+private theorem modulatedQuotientLogMoment_coeff_summable_integer_schwartz
+    (v : SchwartzBruhat (Multiplicative ℤ)) (d : ℕ) :
+    Summable (fun n : ℤ ↦ (1 + |(n : ℝ)|) ^ d * ‖v (Multiplicative.ofAdd n)‖) := by
+  have hA : ∃ A : RapidDecaySequence 1 ≃L[ℂ] SchwartzBruhat (Multiplicative ℤ),
+      ∀ s (k : ℤ), A s (Multiplicative.ofAdd k) = s (fun _ ↦ k) := by
+    let H := Multiplicative ℤ
+    let E₀ := ElementaryLieGroup 0 0 1 PUnit
+    let c : H ≃ₜ* Multiplicative E₀ :=
+      { toFun := fun n ↦ Multiplicative.ofAdd (0, 0, fun _ ↦ n.toAdd, 0)
+        invFun := fun x ↦ Multiplicative.ofAdd (x.toAdd.2.2.1 0)
+        left_inv := fun _ ↦ rfl
+        right_inv := fun x ↦ by
+          apply Multiplicative.toAdd.injective
+          apply Prod.ext (Subsingleton.elim _ _)
+          apply Prod.ext (Subsingleton.elim _ _)
+          apply Prod.ext _ (Subsingleton.elim _ _)
+          exact funext fun i ↦ congrArg x.toAdd.2.2.1 (Subsingleton.elim 0 i)
+        map_mul' := fun _ _ ↦ by
+          apply Multiplicative.toAdd.injective
+          apply Prod.ext (Subsingleton.elim _ _)
+          apply Prod.ext (Subsingleton.elim _ _)
+          exact Prod.ext rfl (Subsingleton.elim _ _)
+        continuous_toFun := continuous_of_discreteTopology
+        continuous_invFun := continuous_of_discreteTopology }
+    let p : ElementaryLCAPresentation H := ⟨0, 0, 1, PUnit, c⟩
+    have hG := (lca_elementary_iff (G := H)).mpr ⟨p⟩
+    let top : (⊤ : Subgroup H) ≃ₜ* H :=
+      ⟨Subgroup.topEquiv, continuous_subtype_val, continuous_id.subtype_mk _⟩
+    let a : BruhatStructuralPair H := ⟨(⊤, OrderDual.toDual ⊥), isOpen_univ,
+      isCompactlyGeneratedGroup_of_continuousMulEquiv top.symm hG.1,
+      isBruhatGoodSubgroup_bot_iff.mpr hG.2, bot_le⟩
+    let q : a.quotient ≃* H :=
+      QuotientGroup.quotientKerEquivOfRightInverse a.val.1.subtype top.symm (fun _ ↦ rfl)
+    let q' : a.quotient ≃ₜ* H :=
+      { q with
+        continuous_toFun :=
+          (QuotientGroup.isQuotientMap_mk _).continuous_iff.mpr continuous_subtype_val
+        continuous_invFun := QuotientGroup.continuous_mk.comp top.symm.continuous }
+    let e : ElementaryLCAPresentation a.quotient := ⟨0, 0, 1, PUnit, q'.trans c⟩
+    let Jinc : SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat H := schwartzBruhatStageInclusion a e
+    have hJ := schwartzBruhatStage_isEmbedding a e
+    have hs := schwartzBruhat_maxStage_surjective a (fun b ↦
+      (show b.val.1 ≤ ⊤ ∧ (⊥ : Subgroup H) ≤ OrderDual.ofDual b.val.2 from ⟨le_top, bot_le⟩)) e
+    let Bequiv := ContinuousLinearEquiv.ofIsHomeomorph
+      (LinearEquiv.ofBijective Jinc ⟨hJ.injective, hs⟩)
+      (isHomeomorph_iff_isEmbedding_surjective.mpr ⟨hJ, hs⟩)
+    have hR := rapidDecaySequence_equiv_elementarySchwartz (r := 1)
+    refine ⟨hR.choose.trans Bequiv, fun s n ↦ ?_⟩
+    change schwartzBruhatStageRealization a e (hR.choose s) (Multiplicative.ofAdd n) = _
+    rw [schwartzBruhatStageRealization_apply, dite_eq_left (Subgroup.mem_top _)]
+    exact hR.choose_spec s _
+  obtain ⟨A, hA⟩ := hA
+  let s := A.symm v
+  have hs (k : ℤ) : v (Multiplicative.ofAdd k) = s (fun _ ↦ k) := by
+    rw [← hA s k, A.apply_symm_apply]
+  have hb : rapidDecaySequenceBound d s < ⊤ := s.property d
+  let g (a : Fin 1 → ℤ) : ℝ≥0 :=
+    (1 + ‖(WithLp.toLp 2 (fun i ↦ (a i : ℝ)) : EuclideanSpace ℝ (Fin 1))‖₊) ^ d * ‖s a‖₊
+  have hg : Summable g := by
+    apply ENNReal.tsum_coe_ne_top_iff_summable.mp
+    refine ne_of_lt (lt_of_le_of_lt (le_of_eq ?_) hb)
+    exact (tsum_congr fun a ↦ by
+      simp only [g, ENNReal.coe_mul, ENNReal.coe_pow, ENNReal.coe_add, ENNReal.coe_one]).symm
+  have hg' : Summable (fun n : ℤ ↦ (g (fun _ ↦ n) : ℝ)) :=
+    (Equiv.funUnique (Fin 1) ℤ).symm.summable_iff.mpr (NNReal.summable_coe.mpr hg)
+  refine hg'.of_nonneg_of_le (fun n ↦ by positivity) fun n ↦ ?_
+  rw [hs n]
+  have hn : |(n : ℝ)| ≤ ‖(WithLp.toLp 2 (fun _ : Fin 1 ↦ (n : ℝ)) : EuclideanSpace ℝ (Fin 1))‖ :=
+    (Real.norm_eq_abs _).symm.le.trans
+      (PiLp.norm_apply_le (WithLp.toLp 2 (fun _ : Fin 1 ↦ (n : ℝ))) 0)
+  simp only [g]
+  push_cast
+  gcongr
+
+include hχ in
+/-- Paper: Theorem 4.6.1.5(2), p. 212, and p. 216. The statement of
+`modulatedQuotientLogMoment_coeff_summable`, derived from `modulatedLogMoment_lattice_schwartz`:
+the lattice coefficients of order below the multiplicity decay faster than any power, and a
+polynomial factor does not change that. Each moment index is sent injectively to a generator,
+a moment order and a lattice frequency, and the sum over the finitely many generators and
+orders of the weighted Schwartz sequences is finite. -/
+theorem modulatedQuotientLogMoment_coeff_summable_of_lattice_schwartz (ψ : J → U)
+    (q : Seminorm ℂ U)
+    (d : ℕ) (C : Fin N → ℝ) (hC : ∀ k, 0 ≤ C k)
+    (hψ : ∀ (k : Fin N) (n : ℤ) (j : J), j.val.1 = freq[k, n] →
+      q (ψ j) ≤ C k * (1 + |(n : ℝ)|) ^ d)
+    (u : U) : Summable (fun j : J ↦ ‖D j u‖ * q (ψ j)) := by
+  obtain ⟨f, rfl⟩ := (R).mkQ_surjective u
+  have hk (j : J) : ∃ k : Fin N, ∃ n : ℤ, j.val.1 = freq[k, n] := by
+    have hpos := (mem_modulatedPeriodicSpectrum_iff m ω γs j.val.1).mpr
+      (lt_of_le_of_lt (Nat.zero_le _) j.2)
+    obtain ⟨k, hk⟩ := mem_iUnion.mp hpos
+    rw [← (modulatedPeriodicFrequency_bijective m hm hms ω γs hγs χ hχ t₀ ht₀ k).2] at hk
+    obtain ⟨n, hn⟩ := hk
+    exact ⟨k, n, hn.symm⟩
+  choose k n hkn using hk
+  let ι (j : J) : (Fin N × Fin N) × ℤ :=
+    ((k j, ⟨j.val.2, modulatedQuotientLogMoment_bases_index_lt m ω γs j⟩), n j)
+  have hι : Injective ι := by
+    intro i j hij
+    simp only [ι, Prod.mk.injEq, Fin.mk.injEq] at hij
+    obtain ⟨⟨hk, hr⟩, hn⟩ := hij
+    apply Subtype.ext
+    refine Prod.ext ?_ hr
+    rw [hkn i, hkn j, hk, hn]
+  choose v hv using fun (k : Fin N) (r : Fin N) ↦
+    modulatedLogMoment_lattice_schwartz m hm hms ω γs hγs χ hχ t₀ ht₀ μ f r k
+  let Gf (p : (Fin N × Fin N) × ℤ) : ℝ :=
+    C p.1.1 * ((1 + |(p.2 : ℝ)|) ^ d * ‖v p.1.1 p.1.2 (Multiplicative.ofAdd p.2)‖)
+  have hG : Summable Gf := by
+    refine (summable_prod_of_nonneg fun p ↦ mul_nonneg (hC _) (by positivity)).mpr
+      ⟨fun x ↦ ?_, Summable.of_finite⟩
+    exact (modulatedQuotientLogMoment_coeff_summable_integer_schwartz (v x.1 x.2) d).mul_left
+      (C x.1)
+  refine (hG.comp_injective hι).of_nonneg_of_le (fun j ↦ by positivity) fun j ↦ ?_
+  have hlt : ((⟨j.val.2, modulatedQuotientLogMoment_bases_index_lt m ω γs j⟩ : Fin N) : ℕ) <
+      modulatedPeriodicMultiplicity m ω γs (freq[k j, n j]) := by
+    rw [← hkn j]
+    exact j.2
+  have hD : D j ((R).mkQ f) =
+      v (k j) ⟨j.val.2, modulatedQuotientLogMoment_bases_index_lt m ω γs j⟩
+        (Multiplicative.ofAdd (n j)) := by
+    rw [hv, ite_eq_left hlt, ← hkn j]
+    rfl
+  change ‖D j ((R).mkQ f)‖ * q (ψ j) ≤ Gf (ι j)
+  rw [hD]
+  calc _ ≤ ‖v (k j) ⟨j.val.2, modulatedQuotientLogMoment_bases_index_lt m ω γs j⟩
+        (Multiplicative.ofAdd (n j))‖ * (C (k j) * (1 + |(n j : ℝ)|) ^ d) :=
+        mul_le_mul_of_nonneg_left (hψ (k j) (n j) j (hkn j)) (norm_nonneg _)
+    _ = _ := by simp only [Gf, ι]; ring
 
 end Moments
 
