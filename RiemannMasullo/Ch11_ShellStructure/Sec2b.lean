@@ -1329,14 +1329,149 @@ local notation "onClosedPrimeQuotient(" hs ", " ω ", " body ")" =>
    letI : CompleteSpace Q(p, hs, ω) := Submodule.Quotient.completeSpace (N(p, hs, ω))
    body)
 
+
+omit _hdeg _hχ in
+/-- Descending a continuous linear family of endomorphisms, first to an invariant
+submodule and then to its quotient, preserves linear dependence and operator-norm continuity. -/
+private theorem primeOrbitalSobolevConvolution_traceNorm_continuous_descend
+    {X E : Type*} [AddCommGroup X] [Module ℂ X] [TopologicalSpace X] [IsTopologicalAddGroup X]
+    [NormedAddCommGroup E] [NormedSpace ℂ E] (D : Submodule ℂ E) (N : Submodule ℂ D)
+    (A : X →ₗ[ℂ] E →L[ℂ] E) (hA : Continuous A) (R : X → D →L[ℂ] D)
+    (hR : ∀ x (u : D), (R x u).val = A x u.val)
+    (B : X → (D ⧸ N) →L[ℂ] (D ⧸ N))
+    (hB : ∀ x (u : D), B x (N.mkQ u) = N.mkQ (R x u)) :
+    IsLinearMap ℂ B ∧ Continuous B := by
+  have hlin : IsLinearMap ℂ B := by
+    constructor
+    · intro x y
+      apply ContinuousLinearMap.ext
+      intro q
+      obtain ⟨u, rfl⟩ := N.mkQ_surjective q
+      simp only [add_apply, hB, ← map_add N.mkQ]
+      exact congrArg N.mkQ (Subtype.ext (by simp [hR]))
+    · intro c x
+      apply ContinuousLinearMap.ext
+      intro q
+      obtain ⟨u, rfl⟩ := N.mkQ_surjective q
+      simp only [smul_apply, hB, ← map_smul N.mkQ]
+      exact congrArg N.mkQ (Subtype.ext (by simp [hR]))
+  refine ⟨hlin, continuous_of_continuousAt_zero (hlin.mk' B) ?_⟩
+  have hbound (x : X) : ‖B x‖ ≤ ‖A x‖ := by
+    refine (B x).opNorm_le_bound (norm_nonneg _) fun q ↦ ?_
+    refine le_of_forall_pos_le_add fun ε hε ↦ ?_
+    obtain ⟨u, hu, hnorm⟩ := Submodule.Quotient.norm_mk_lt (S := N) q
+      (div_pos hε (show 0 < ‖A x‖ + 1 by positivity))
+    calc
+      ‖B x q‖ = ‖N.mkQ (R x u)‖ := by rw [← hu]; exact congrArg norm (hB x u)
+      _ ≤ ‖(R x u).val‖ := Submodule.Quotient.norm_mk_le N _
+      _ = ‖A x u.val‖ := by rw [hR]
+      _ ≤ ‖A x‖ * (‖q‖ + ε / (‖A x‖ + 1)) :=
+        ((A x).le_opNorm u.val).trans (mul_le_mul_of_nonneg_left hnorm.le (norm_nonneg _))
+      _ ≤ ‖A x‖ * ‖q‖ + ε := by
+        have hn : ‖A x‖ / (‖A x‖ + 1) ≤ 1 :=
+          (div_le_one (by positivity)).2 (le_add_of_nonneg_right zero_le_one)
+        calc
+          _ = ‖A x‖ * ‖q‖ + ε * (‖A x‖ / (‖A x‖ + 1)) := by ring
+          _ ≤ _ := by gcongr; exact mul_le_of_le_one_right hε.le hn
+  change Tendsto B (𝓝 0) (𝓝 (B 0))
+  rw [hlin.map_zero]
+  apply squeeze_zero_norm hbound
+  simpa using hA.continuousAt.norm.tendsto (x := 0)
+
+omit _hdeg _hχ in
+/-- The trace norm of a nuclear family is lower semicontinuous in the operator norm
+because it is the supremum of the finite sums of its approximation numbers. -/
+private theorem primeOrbitalSobolevConvolution_traceNorm_continuous_lsc
+    {X H : Type*} [TopologicalSpace X] [NormedAddCommGroup H] [InnerProductSpace ℂ H]
+    [CompleteSpace H] (T : X → nuclearEndomorphisms H) (h : Continuous fun x ↦ (T x).val) :
+    LowerSemicontinuous (fun x ↦ traceNorm (T x)) := by
+  let p (I : Finset ℕ) (x : X) := ∑ n ∈ I, approximationNumber (T x).val n
+  have nn (x : X) (n : ℕ) : 0 ≤ approximationNumber (T x).val n :=
+    Real.sInf_nonneg fun _ ⟨_, _, he⟩ ↦ he ▸ norm_nonneg _
+  have hs (x : X) : HasSum (approximationNumber (T x).val) (traceNorm (T x)) := by
+    have hmem := (mem_traceClassOperators_iff_isNuclearOperator (T x).val).2 (T x).property
+    have hsum : Summable (approximationNumber (T x).val) := by simpa using hmem.2
+    have he := schattenNorm_one_eq_traceNorm (T x)
+    simp only [schattenNorm, Real.rpow_one, div_one] at he
+    exact he ▸ hsum.hasSum
+  have hle (I : Finset ℕ) (x : X) : p I x ≤ traceNorm (T x) :=
+    ((hs x).summable.sum_le_tsum I (fun n _ ↦ nn x n)).trans_eq (hs x).tsum_eq
+  have hbound (x : X) : BddAbove (range fun I ↦ p I x) :=
+    ⟨traceNorm (T x), fun z ⟨I, he⟩ ↦ he ▸ hle I x⟩
+  have he (x : X) : traceNorm (T x) = ⨆ I, p I x := by
+    apply le_antisymm ?_ (ciSup_le (hle · x))
+    exact le_of_tendsto (hs x) (.of_forall (fun I ↦ le_ciSup (hbound x) I))
+  simp_rw [he]
+  refine lowerSemicontinuous_ciSup hbound fun I ↦ Continuous.lowerSemicontinuous ?_
+  apply continuous_finsetSum _ fun n _ ↦ ?_
+  have hc : Continuous (fun D : H →L[ℂ] H ↦ approximationNumber D n) :=
+    (LipschitzWith.of_dist_le' (K := 1) (fun D E ↦ by
+      simpa only [dist_eq_norm, Real.norm_eq_abs, one_mul] using abs_approximationNumber_sub_le D E n)).continuous
+  exact hc.comp h
+
+omit _hdeg _hχ in
+/-- On the strict LF test space the trace-norm seminorm is continuous on each
+Fréchet stage and hence on their locally convex inductive limit. -/
+private theorem primeOrbitalSobolevConvolution_traceNorm_continuous_lift
+    {X H : Type*} [AddCommGroup X] [Module ℂ X] [TopologicalSpace X]
+    [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H] (hX : IsStrictLFSpace X)
+    (B : X → H →L[ℂ] H) (hB : IsLinearMap ℂ B ∧ Continuous B)
+    (hn : ∀ x, B x ∈ nuclearEndomorphisms H) :
+    ∃ L : X →ₗ[ℂ] nuclearEndomorphisms H, (∀ x, (L x).val = B x) ∧
+      Tendsto (fun x ↦ traceNorm (L x)) (𝓝 0) (𝓝 0) := by
+  let L := (hB.1.mk' B).codRestrict (nuclearEndomorphisms H) hn
+  refine ⟨L, fun _ ↦ rfl, ?_⟩
+  let : Norm (nuclearEndomorphisms H) := ⟨traceNorm⟩
+  let c := traceNorm_normedSpaceCore (H := H)
+  let p : Seminorm ℂ X :=
+    { toFun := fun x ↦ traceNorm (L x)
+      map_zero' := by rw [map_zero]; exact (c.norm_eq_zero_iff _).2 rfl
+      add_le' := fun x y ↦ by rw [map_add]; exact c.norm_triangle _ _
+      neg' := fun x ↦ by simpa only [map_neg, ← neg_one_smul ℂ (L x), norm_neg, norm_one, one_mul]
+          using c.norm_smul (-1 : ℂ) (L x)
+      smul' := fun k x ↦ by rw [map_smul]; exact c.norm_smul _ _ }
+  have hl : LowerSemicontinuous p :=
+    primeOrbitalSobolevConvolution_traceNorm_continuous_lsc (fun x ↦ L x) hB.2
+  obtain ⟨_, S, _, hS, _, ht⟩ := hX
+  have hT : WithSeminorms
+      (Subtype.val : {q : Seminorm ℂ X // ∀ k, Continuous (q ∘ (S k).subtype)} → Seminorm ℂ X) := ⟨ht⟩
+  have hc : Continuous p := hT.continuous_seminorm ⟨p, fun k ↦ by
+    let : BarrelledSpace ℂ (S k) := isFrechetTVS_barrelled (hS k)
+    exact (p.comp (S k).subtype).continuous_of_lowerSemicontinuous
+      (hl.comp (S k).subtypeL.continuous)⟩
+  exact hc.tendsto' 0 0 p.map_zero'
+
+/-- Paper: Theorem 11.2.2.1 and (11.2.2.3), p. 490. Convolution by a compactly supported
+Bruhat test is a nuclear operator on the prime quotient. This is the pointwise half of the
+theorem; the trace-norm continuity of the linear lift follows from it by lower
+semicontinuity of the trace norm on the Fréchet stages of the test space. The printed proof
+expands the transpose along the orbital Markushevich basis, (11.2.2.12), and needs a bound
+on the biorthogonal vectors that Corollary 11.2.0.5 does not give (see the TODO above).
+Deviation: Use the quotient by the closed principal-value image. -/
+theorem primeOrbitalSobolevConvolution_mem_nuclearEndomorphisms (φ : BruhatCompactSupport C𝔽) :
+    onClosedPrimeQuotient(hs₁, ω(χ), OrbA(φ) ∈ nuclearEndomorphisms OrbQ) := by sorry
+
 /-- Paper: Theorem 11.2.2.1 and (11.2.2.3), p. 490.
 The convolution action lifts linearly to the trace class and is continuous in trace norm.
 Deviation: Use the quotient by the closed principal-value image. -/
 theorem primeOrbitalSobolevConvolution_traceNorm_continuous :
     onClosedPrimeQuotient(hs₁, ω(χ),
       ∃ L : BruhatCompactSupport C𝔽 →ₗ[ℂ] nuclearEndomorphisms OrbQ,
-        (∀ φ, (L φ).val = OrbA(φ)) ∧ Tendsto (fun φ ↦ traceNorm (L φ)) (𝓝 0) (𝓝 0)) :=
-  by sorry
+        (∀ φ, (L φ).val = OrbA(φ)) ∧ Tendsto (fun φ ↦ traceNorm (L φ)) (𝓝 0) (𝓝 0)) := by
+  have hn := primeOrbitalSobolevConvolution_mem_nuclearEndomorphisms (F := F) (p := p)
+    (χ := χ) (h₁ := h₁) (_hdeg := _hdeg) (_hχ := _hχ)
+  exact onClosedPrimeQuotient(hs₁, ω(χ), by
+    apply primeOrbitalSobolevConvolution_traceNorm_continuous_lift (X := BruhatCompactSupport C𝔽)
+      (H := OrbQ) bruhatCompactSupport_strictLF (fun φ ↦ OrbA(φ))
+    · exact primeOrbitalSobolevConvolution_traceNorm_continuous_descend
+        (X := BruhatCompactSupport C𝔽) (E := W(s)) Wω(hs₁, ω(χ)) N(p, hs₁, ω(χ))
+        (hardySobolevTestAction μ𝔽 m𝔽 0 0 s h₀ hs₁)
+        (continuous_hardySobolevTestAction μ𝔽 m𝔽 0 0 s h₀ hs₁)
+        (fun φ ↦ ContinuousLinearMap.restrict (A(hs₁, φ))
+          (hardySobolevTestAction_preserves_spectralIsotype (F := F) h₀ hs₁ (ω(χ)) φ))
+        (fun _ _ ↦ rfl) (fun φ ↦ OrbA(φ))
+        (fun φ u ↦ primeOrbitalSobolevConvolution_mkQ (F := F) p hs₁ (ω(χ)) φ u)
+    · exact fun φ ↦ hn φ)
 
 section PrimeOrbitalNuclearHelpers
 
@@ -1419,6 +1554,48 @@ theorem primeOrbitalSobolevConvolution_trace_distribution :
 local notation "zeros" => {z : ℂ // reciprocalPartialHeckeEulerProduct χ (Sₚ(p)) z = 0}
 local notation "mult(" z ")" => orbitalEulerMultiplicity χ (Sₚ(p)) z
 
+omit _hdeg _hχ in
+/-- The weighted Mellin values at the zeros are dominated by the terms of the finite
+orbital trace of Theorem 7.4.2.1, which are absolutely summable. The truncated
+multiplicity is at most the order of the zero. -/
+private theorem primeOrbitalSobolevConvolution_trace_summable_of_finite
+    (χ : PontryaginDual C𝔽) (p : HeightOneSpectrum (𝓞 ℚ)) (s : ℝ)
+    (φ : BruhatCompactSupport C𝔽) :
+    Summable (fun z : {z : ℂ // reciprocalPartialHeckeEulerProduct χ (Sₚ(p)) z = 0} ↦
+      ‖(spectralBoundaryMultiplicity s (orbitalEulerMultiplicity χ (Sₚ(p)) z.val) : ℂ) *
+        nuclearityTestMellin χ φ z.val‖) := by
+  classical
+  obtain ⟨T₀, -, -, hsum, -⟩ := finiteNuclearity_trace χ
+    ⟨canonicalIdeleNormSection F, canonicalIdeleNormSection_continuous F⟩
+    (canonicalIdeleNormSection_rightInverse F) p φ
+  let R := reciprocalPartialHeckeEulerProduct χ (Sₚ(p))
+  have hR (z : ℂ) : AnalyticAt ℂ R z := by
+    have h : ∀ v ∈ Sₚ(p), AnalyticAt ℂ (fun w ↦ (finiteHeckeEulerFactor χ v w)⁻¹) z :=
+      fun v _ ↦ (reciprocalEulerProduct_over_prime_order_le_factor χ v z).1
+    have := Finset.analyticAt_prod (Sₚ(p)) h
+    rw [Finset.prod_fn] at this
+    exact this
+  have hset : {z : ℂ | 0 < analyticOrderAt R z} = {z : ℂ | R z = 0} := by
+    ext z
+    change 0 < analyticOrderAt R z ↔ R z = 0
+    rw [pos_iff_ne_zero, Ne, (hR z).analyticOrderAt_eq_zero, not_not]
+  have hmult (z : ℂ) : orbitalEulerMultiplicity χ (Sₚ(p)) z = (analyticOrderAt R z).toNat := by
+    change (meromorphicOrderAt R z).untop₀.toNat = _
+    rw [(hR z).meromorphicOrderAt_eq]
+    cases analyticOrderAt R z using ENat.recTopCoe <;> simp
+  let g : ℂ → ℝ := fun z ↦ ‖((analyticOrderAt R z).toNat : ℂ) * nuclearityTestMellin χ φ z‖
+  have hg : Summable ({z : ℂ | R z = 0}.indicator g) := by
+    rw [← hset]
+    exact summable_subtype_iff_indicator.mp hsum
+  have hg' : Summable (g ∘ Subtype.val : {z : ℂ | R z = 0} → ℝ) :=
+    summable_subtype_iff_indicator.mpr hg
+  refine Summable.of_nonneg_of_le (fun _ ↦ norm_nonneg _) (fun z ↦ ?_) hg'
+  change ‖_‖ ≤ g z.val
+  simp only [g, norm_mul, Complex.norm_natCast]
+  gcongr
+  rw [hmult]
+  exact min_le_left _ _
+
 /-- Paper: Theorem 11.2.2.1 and (11.2.2.4)–(11.2.2.5), p. 490. The Mellin values of the
 test at the zeros of the reciprocal partial Euler product over the places above p, weighted
 by the admissible multiplicity, form an absolutely summable family. -/
@@ -1427,7 +1604,92 @@ theorem primeOrbitalSobolevConvolution_trace_summable (φ : BruhatCompactSupport
       ∀ (T : nuclearEndomorphisms OrbQ), T.val = OrbA(φ) →
         let term (z : zeros) :=
           (spectralBoundaryMultiplicity s (mult(z.val)) : ℂ) * nuclearityTestMellin χ φ z.val
-        Summable (fun z ↦ ‖term z‖)) := by sorry
+        Summable (fun z ↦ ‖term z‖)) := by
+  dsimp only
+  intro T _
+  exact primeOrbitalSobolevConvolution_trace_summable_of_finite χ p s φ
+
+omit _hdeg _hχ in
+/-- A rank-one expansion that converges in trace norm has trace equal to the sum of its
+diagonal entries. -/
+private theorem primeOrbitalSobolevConvolution_trace_hasSum_of_expansion
+    {ι H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (T : nuclearEndomorphisms H) (x : ι → H) (Λ : ι → StrongDual ℂ H)
+    (h : Tendsto (fun I : Finset ι ↦ traceNorm (T - ∑ j ∈ I,
+      (⟨(Λ j).smulRight (x j), smulRight_mem_nuclearEndomorphisms (Λ j) (x j)⟩ :
+        nuclearEndomorphisms H))) atTop (𝓝 0)) :
+    HasSum (fun j ↦ Λ j (x j)) (hilbertTrace T) := by
+  obtain ⟨f, hf⟩ := hilbertTrace_linear (H := H)
+  have hsum (I : Finset ι) : ∑ j ∈ I, Λ j (x j) = hilbertTrace (∑ j ∈ I,
+      (⟨(Λ j).smulRight (x j), smulRight_mem_nuclearEndomorphisms (Λ j) (x j)⟩ :
+        nuclearEndomorphisms H)) := by
+    rw [← hf, map_sum]
+    simp_rw [hf, hilbertTrace_smulRight]
+  change Tendsto (fun I : Finset ι ↦ ∑ j ∈ I, Λ j (x j)) atTop (𝓝 (hilbertTrace T))
+  simp_rw [hsum]
+  rw [tendsto_iff_norm_sub_tendsto_zero]
+  refine squeeze_zero (fun _ ↦ norm_nonneg _) (fun I ↦ ?_) h
+  rw [← hf, ← hf, ← map_sub, ← neg_sub, map_neg, norm_neg, hf]
+  exact norm_hilbertTrace_le _
+
+omit _hdeg _hχ in
+/-- Summing a function of the ordinate over the admitted jets is summing over the zeros with
+the truncated multiplicity as weight. -/
+private theorem primeOrbitalSobolevConvolution_trace_hasSum_reindex
+    (χ : PontryaginDual C𝔽) (S : Finset V) (s : ℝ) (M : ℂ → ℂ) (a : ℂ)
+    (hre : ∀ z, reciprocalPartialHeckeEulerProduct χ S z = 0 → z.re = 0)
+    (h : HasSum (fun j : OrbitalJetIndex χ S s ↦ M ((j.val.1 : ℂ) * Complex.I)) a) :
+    HasSum (fun z : {z : ℂ // reciprocalPartialHeckeEulerProduct χ S z = 0} ↦
+      (spectralBoundaryMultiplicity s (orbitalEulerMultiplicity χ S z.val) : ℂ) * M z.val) a := by
+  let Z := {z : ℂ // reciprocalPartialHeckeEulerProduct χ S z = 0}
+  let N (z : Z) : ℕ := spectralBoundaryMultiplicity s (orbitalEulerMultiplicity χ S z.val)
+  have hfreq (z : Z) : ((z.val.im : ℝ) : ℂ) * Complex.I = z.val := by
+    apply Complex.ext <;> simp [hre z.val z.property]
+  let toJ (p : Σ z : Z, Fin (N z)) : OrbitalJetIndex χ S s :=
+    ⟨(p.1.val.im, p.2.val), by
+      change p.2.val < spectralBoundaryMultiplicity s
+        (orbitalEulerMultiplicity χ S (((p.1.val.im : ℝ) : ℂ) * Complex.I))
+      rw [hfreq]; exact p.2.isLt⟩
+  let ofJ (j : OrbitalJetIndex χ S s) : Σ z : Z, Fin (N z) :=
+    ⟨⟨(j.val.1 : ℂ) * Complex.I, OrbitalJetIndex.isZero j⟩, ⟨j.val.2, j.property⟩⟩
+  let e : (Σ z : Z, Fin (N z)) ≃ OrbitalJetIndex χ S s :=
+    { toFun := toJ
+      invFun := ofJ
+      left_inv := fun p ↦ by
+        refine Sigma.ext (Subtype.ext ?_) ?_
+        · exact hfreq p.1
+        · exact (Fin.heq_ext_iff (congrArg N (Subtype.ext (hfreq p.1)))).mpr rfl
+      right_inv := fun j ↦ by
+        apply Subtype.ext
+        change ((((j.val.1 : ℂ) * Complex.I).im : ℝ), j.val.2) = j.val
+        simp }
+  have h' : HasSum (fun p : Σ z : Z, Fin (N z) ↦ M ((((toJ p).val.1 : ℝ) : ℂ) * Complex.I)) a :=
+    (e.hasSum_iff).mpr h
+  refine h'.sigma fun z ↦ ?_
+  have hfin : HasSum (fun k : Fin (N z) ↦ M (((toJ ⟨z, k⟩).val.1 : ℂ) * Complex.I))
+      (∑ k : Fin (N z), M (((toJ ⟨z, k⟩).val.1 : ℂ) * Complex.I)) := hasSum_fintype _
+  convert hfin using 1
+  simp only [toJ, hfreq, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  rfl
+
+/-- Paper: Theorem 11.2.2.1 and (11.2.2.6)–(11.2.2.12), pp. 490–491. The orbital
+convolution expands along the admitted jets: there are vectors `x` and functionals `Λ`
+indexed by the jets such that the rank-one series `∑ (Λ j ∘ A(φ)) ⊗ x j` converges to `A(φ)`
+in trace norm, and the diagonal entry at a jet is the Mellin value of the test at the
+ordinate of the jet, since the matrix of the transpose on the jets over one zero is
+triangular with that constant diagonal, (11.2.2.6)–(11.2.2.11). The printed convergence
+argument needs a bound on the biorthogonal vectors that Corollary 11.2.0.5 does not give.
+Deviation: Use the quotient by the closed principal-value image and the strict cutoff. -/
+theorem primeOrbitalSobolevConvolution_trace_jetExpansion (φ : BruhatCompactSupport C𝔽) :
+    onClosedPrimeQuotient(hs₁, ω(χ),
+      ∃ (x : OrbitalJetIndex χ (Sₚ(p)) s → OrbQ)
+        (Λ : OrbitalJetIndex χ (Sₚ(p)) s → StrongDual ℂ OrbQ),
+        (∀ j, Λ j (OrbA(φ) (x j)) = nuclearityTestMellin χ φ ((j.val.1 : ℂ) * Complex.I)) ∧
+        ∀ (T : nuclearEndomorphisms OrbQ), T.val = OrbA(φ) →
+          Tendsto (fun I : Finset (OrbitalJetIndex χ (Sₚ(p)) s) ↦ traceNorm (T - ∑ j ∈ I,
+            (⟨((Λ j).comp OrbA(φ)).smulRight (x j),
+              smulRight_mem_nuclearEndomorphisms _ _⟩ : nuclearEndomorphisms OrbQ)))
+            atTop (𝓝 0)) := by sorry
 
 /-- Paper: Theorem 11.2.2.1 and (11.2.2.4)–(11.2.2.5), p. 490. The sum of those weighted
 Mellin values is the trace of the convolution, for any nuclear presentation of it. -/
@@ -1436,7 +1698,21 @@ theorem primeOrbitalSobolevConvolution_trace_hasSum (φ : BruhatCompactSupport C
       ∀ (T : nuclearEndomorphisms OrbQ), T.val = OrbA(φ) →
         let term (z : zeros) :=
           (spectralBoundaryMultiplicity s (mult(z.val)) : ℂ) * nuclearityTestMellin χ φ z.val
-        HasSum term (hilbertTrace T)) := by sorry
+        HasSum term (hilbertTrace T)) := by
+  have hexp := primeOrbitalSobolevConvolution_trace_jetExpansion (F := F) (p := p)
+    (χ := χ) (h₁ := h₁) (_hdeg := _hdeg) (_hχ := _hχ) φ
+  -- Work under the instance chain, so that the quotient instances are local instances and
+  -- nothing is synthesized through the quotient type synonym (#5398).
+  exact onClosedPrimeQuotient(hs₁, ω(χ), by
+    dsimp only at hexp ⊢
+    intro T hT
+    obtain ⟨x, Λ, hdiag, hconv⟩ := hexp
+    have h1 := primeOrbitalSobolevConvolution_trace_hasSum_of_expansion T x
+      (fun j ↦ (Λ j).comp OrbA(φ)) (hconv T hT)
+    have h2 := h1.congr_fun (g := fun j : OrbitalJetIndex χ (Sₚ(p)) s ↦
+      nuclearityTestMellin χ φ ((j.val.1 : ℂ) * Complex.I)) fun j ↦ (hdiag j).symm
+    exact primeOrbitalSobolevConvolution_trace_hasSum_reindex χ (Sₚ(p)) s
+      (nuclearityTestMellin χ φ) _ (fun z hz ↦ orbitalEulerZero_re_eq_zero χ (Sₚ(p)) _hχ hz) h2)
 
 /-- Paper: Theorem 11.2.2.1 and (11.2.2.4)–(11.2.2.5), p. 490.
 The trace is the absolutely convergent sum of Mellin values at the zeros of the
